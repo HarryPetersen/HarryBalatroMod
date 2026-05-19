@@ -220,6 +220,27 @@ local function gilia_clamp_randomized_value(base_value, randomized_value, min, m
     return randomized_value
 end
 
+local function gilia_is_allowed_joker_key(k)
+    return k == "extra"
+        or k == "mult"
+        or k == "chips"
+        or k == "x_mult"
+        or k == "xmult"
+        or k == "Xmult"
+        or k == "money"
+        or k == "dollars"
+        or k == "h_size"
+        or k == "hands"
+        or k == "discards"
+        or k == "odds"
+        or k == "prob"
+        or k == "probability"
+        or k == "retriggers"
+        or k == "repetitions"
+        or k == "s_mult"
+        or k == "s_chips"
+end
+
 local function gilia_randomize_numbers_in_table(t, card, center, seed_prefix, min, max, path, center_set)
     if type(t) ~= "table" then return end
     if not card then return end
@@ -232,9 +253,12 @@ local function gilia_randomize_numbers_in_table(t, card, center, seed_prefix, mi
 
         if type(v) == "number" then
             if not gilia_should_skip_number_key(k) then
-                -- IMPORTANT:
-                -- Prefer the original center config as the base value.
-                -- This fixes 2 becoming 232 after repeated randomization.
+                -- For Jokers, do NOT randomize every random number.
+                -- Only randomize known effect-style keys.
+                if center_set == "Joker" and not gilia_is_allowed_joker_key(k) then
+                    goto continue
+                end
+
                 local base_value = gilia_get_base_from_original_config(center, current_path, nil)
 
                 if base_value == nil then
@@ -259,6 +283,8 @@ local function gilia_randomize_numbers_in_table(t, card, center, seed_prefix, mi
         elseif type(v) == "table" then
             gilia_randomize_numbers_in_table(v, card, center, seed_prefix, min, max, current_path, center_set)
         end
+
+        ::continue::
     end
 end
 
