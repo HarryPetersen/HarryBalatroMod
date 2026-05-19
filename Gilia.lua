@@ -7,3 +7,5 @@ assert(SMODS.load_file("src/planets.lua"))()
 assert(SMODS.load_file("src/spectrals.lua"))()
 assert(SMODS.load_file("src/vouchers.lua"))()
 assert(SMODS.load_file("src/decks.lua"))()
+
+assert(SMODS.load_file("src/random_values.lua"))()

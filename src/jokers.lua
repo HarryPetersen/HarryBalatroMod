@@ -185,7 +185,7 @@ SMODS.Joker {
     loc_txt = {
         name = "Sneaky",
         text = {
-            "Adds {C:mult}+400{} Mult",
+            "Gives {C:mult}+#1#{} Mult",
         },
     },
 
