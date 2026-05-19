@@ -105,7 +105,7 @@ local function gilia_random_float(seed, min, max)
     min = math.max(0, min)
     max = math.max(min, max)
 
-    local curve_power = 2.4
+    local curve_power = 1.6
 
     local side = pseudorandom(seed .. "_side")
     local distance = pseudorandom(seed .. "_distance") ^ curve_power
