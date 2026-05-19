@@ -55,7 +55,7 @@ local function gilia_get_curve_power()
 
     -- Higher = values stay closer to x1 more often.
     -- Lower = more chaotic.
-    return 2.4
+    return 2
 end
 
 local function gilia_random_float(seed, min, max)
@@ -96,19 +96,19 @@ local function gilia_get_range_for_set(center_set, purpose)
     -- Costs are kept calmer by default.
     if purpose == "cost" then
         return m.gilia_random_cost_min or 0.5,
-            m.gilia_random_cost_max or math.min(global_max, 3)
+            m.gilia_random_cost_max or math.min(global_max, 8)
     end
 
     -- Playing cards found in booster packs.
     if purpose == "playing_card" then
         return m.gilia_random_playing_card_min or 0.1,
-            m.gilia_random_playing_card_max or math.min(global_max, 5)
+            m.gilia_random_playing_card_max or math.min(global_max, 10)
     end
 
     -- Poker hand starting chips/mult and planet upgrades.
     if purpose == "hand" then
         return m.gilia_random_hand_min or 0.5,
-            m.gilia_random_hand_max or math.min(global_max, 3)
+            m.gilia_random_hand_max or math.min(global_max, 8)
     end
 
     if center_set == "Joker" then
@@ -118,22 +118,22 @@ local function gilia_get_range_for_set(center_set, purpose)
 
     if center_set == "Tarot" or center_set == "Spectral" or center_set == "Planet" then
         return m.gilia_random_consumable_min or global_min,
-            m.gilia_random_consumable_max or math.min(global_max, 5)
+            m.gilia_random_consumable_max or math.min(global_max, 8)
     end
 
     if center_set == "Booster" then
         return m.gilia_random_booster_min or 0.5,
-            m.gilia_random_booster_max or math.min(global_max, 3)
+            m.gilia_random_booster_max or math.min(global_max, 6)
     end
 
     if center_set == "Voucher" then
         return m.gilia_random_voucher_min or 0.5,
-            m.gilia_random_voucher_max or math.min(global_max, 4)
+            m.gilia_random_voucher_max or math.min(global_max, 10)
     end
 
     if center_set == "Enhanced" then
         return m.gilia_random_enhancement_min or global_min,
-            m.gilia_random_enhancement_max or math.min(global_max, 5)
+            m.gilia_random_enhancement_max or math.min(global_max, 10)
     end
 
     return global_min, global_max
