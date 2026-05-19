@@ -221,12 +221,13 @@ local function gilia_clamp_randomized_value(base_value, randomized_value, min, m
 end
 
 local function gilia_is_allowed_joker_key(k)
+    -- Do NOT include x_mult/xmult/Xmult here.
+    -- Those can exist as hidden/default values on Jokers that are not meant
+    -- to actually give X Mult.
+
     return k == "extra"
         or k == "mult"
         or k == "chips"
-        or k == "x_mult"
-        or k == "xmult"
-        or k == "Xmult"
         or k == "money"
         or k == "dollars"
         or k == "h_size"
@@ -253,19 +254,32 @@ local function gilia_randomize_numbers_in_table(t, card, center, seed_prefix, mi
 
         if type(v) == "number" then
             if not gilia_should_skip_number_key(k) then
-                -- For Jokers, do NOT randomize every random number.
-                -- Only randomize known effect-style keys.
-                if center_set == "Joker" and not gilia_is_allowed_joker_key(k) then
-                    goto continue
-                end
 
                 local base_value = gilia_get_base_from_original_config(center, current_path, nil)
 
-                if base_value == nil then
-                    if card.gilia_random_base_numbers[current_path] == nil then
-                        card.gilia_random_base_numbers[current_path] = v
+                if center_set == "Joker" then
+                    -- For Jokers, only randomize values that:
+                    -- 1. use an allowed effect-style key
+                    -- 2. actually exist in the Joker's original config
+                    --
+                    -- This stops hidden/default values like x_mult = 1
+                    -- from becoming accidental x4 Mult effects.
+                    if not gilia_is_allowed_joker_key(k) then
+                        goto continue
                     end
-                    base_value = card.gilia_random_base_numbers[current_path]
+
+                    if base_value == nil then
+                        goto continue
+                    end
+                else
+                    -- For non-Jokers, fallback to the first seen value if
+                    -- the value was not found in center.config.
+                    if base_value == nil then
+                        if card.gilia_random_base_numbers[current_path] == nil then
+                            card.gilia_random_base_numbers[current_path] = v
+                        end
+                        base_value = card.gilia_random_base_numbers[current_path]
+                    end
                 end
 
                 local mult = gilia_random_float(seed_prefix .. "_" .. current_path, min, max)
