@@ -226,6 +226,70 @@ local function gilia_is_allowed_joker_key(k)
         or k == "s_chips"
 end
 
+local function gilia_is_allowed_enhancement_key(center, k)
+    if not center then return false end
+
+    local key = center.key or center.name or ""
+
+    -- Bonus Card: only bonus chips
+    if key == "m_bonus" then
+        return k == "bonus"
+            or k == "chips"
+            or k == "h_chips"
+    end
+
+    -- Mult Card: only bonus mult
+    if key == "m_mult" then
+        return k == "mult"
+            or k == "h_mult"
+    end
+
+    -- Glass Card: only x mult / glass chance related values
+    if key == "m_glass" then
+        return k == "x_mult"
+            or k == "xmult"
+            or k == "Xmult"
+            or k == "extra"
+    end
+
+    -- Steel Card: only held-in-hand x mult related values
+    if key == "m_steel" then
+        return k == "x_mult"
+            or k == "xmult"
+            or k == "Xmult"
+            or k == "h_x_mult"
+            or k == "extra"
+    end
+
+    -- Gold Card: only money values
+    if key == "m_gold" then
+        return k == "money"
+            or k == "dollars"
+            or k == "h_dollars"
+            or k == "extra"
+    end
+
+    -- Lucky Card: only lucky money/mult/odds values
+    if key == "m_lucky" then
+        return k == "mult"
+            or k == "money"
+            or k == "dollars"
+            or k == "p_dollars"
+            or k == "odds"
+            or k == "prob"
+            or k == "probability"
+            or k == "extra"
+    end
+
+    -- Stone/Wild cards do not have a simple safe numeric value to randomize.
+    -- Safer to leave them alone.
+    if key == "m_stone" or key == "m_wild" then
+        return false
+    end
+
+    return false
+end
+
 local function gilia_must_be_integer_key(k, center_set)
     if k == "choose"
         or k == "max_highlighted"
@@ -323,6 +387,18 @@ local function gilia_randomize_numbers_in_table(t, card, center, seed_prefix, mi
 
                     if base_value == nil then
                         goto continue
+                    end
+
+                elseif center_set == "Enhanced" then
+                    if not gilia_is_allowed_enhancement_key(center, k) then
+                        goto continue
+                    end
+
+                    if base_value == nil then
+                        if card.gilia_random_base_numbers[current_path] == nil then
+                            card.gilia_random_base_numbers[current_path] = v
+                        end
+                        base_value = card.gilia_random_base_numbers[current_path]
                     end
                 else
                     if base_value == nil then
@@ -590,17 +666,6 @@ local function gilia_randomize_playing_card_from_booster(card)
         card:set_base(random_base)
     end
 
-    local enhance_chance = G.GAME.modifiers.gilia_random_booster_card_enhance_chance or 0.5
-
-    if pseudorandom("gilia_" .. run_seed .. "_booster_enhance_chance_" .. card_seed) < enhance_chance then
-        local enhancement = gilia_get_random_enhancement(
-            "gilia_" .. run_seed .. "_booster_enhancement_" .. card_seed
-        )
-
-        if enhancement and card.set_ability then
-            card:set_ability(enhancement)
-        end
-    end
 end
 
 local old_card_set_ability = Card.set_ability
