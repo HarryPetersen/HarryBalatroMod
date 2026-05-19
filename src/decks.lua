@@ -62,6 +62,7 @@ SMODS.Back {
         G.GAME.modifiers.gilia_random_values = true
         G.GAME.modifiers.gilia_random_min = self.config.min
         G.GAME.modifiers.gilia_random_max = self.config.max
+        G.GAME.modifiers.gilia_random_curve_power = 2
         G.GAME.modifiers.gilia_random_booster_card_enhance_chance = 1
 
         -- Try to randomize hands immediately when the run starts

@@ -1,6 +1,5 @@
 ---@diagnostic disable: undefined-global
 
-
 local function gilia_random_values_enabled()
     return G
         and G.GAME
@@ -47,23 +46,15 @@ local function gilia_get_card_seed(card)
     )
 end
 
-
 local function gilia_get_curve_power()
     if G and G.GAME and G.GAME.modifiers and G.GAME.modifiers.gilia_random_curve_power then
         return G.GAME.modifiers.gilia_random_curve_power
     end
 
-    -- Higher = values stay closer to x1 more often.
-    -- Lower = more chaotic.
     return 2
 end
 
 local function gilia_random_float(seed, min, max)
-    -- Curved random multiplier.
-    -- 1 is the most common result.
-    -- 50% chance below 1, 50% chance above 1.
-    -- High values are possible but rarer.
-
     if min > max then
         min, max = max, min
     end
@@ -93,19 +84,16 @@ local function gilia_get_range_for_set(center_set, purpose)
     local global_min, global_max = gilia_get_global_min_max()
     local m = G.GAME.modifiers
 
-    -- Costs are kept calmer by default.
     if purpose == "cost" then
         return m.gilia_random_cost_min or 0.5,
             m.gilia_random_cost_max or math.min(global_max, 8)
     end
 
-    -- Playing cards found in booster packs.
     if purpose == "playing_card" then
         return m.gilia_random_playing_card_min or 0.1,
             m.gilia_random_playing_card_max or math.min(global_max, 10)
     end
 
-    -- Poker hand starting chips/mult and planet upgrades.
     if purpose == "hand" then
         return m.gilia_random_hand_min or 0.5,
             m.gilia_random_hand_max or math.min(global_max, 8)
@@ -142,8 +130,6 @@ end
 local function gilia_get_original_center_config(center)
     if not center then return nil end
 
-    -- Save the card center's original config once.
-    -- This prevents a Tarot value like 2 becoming 23, then 232, etc.
     if not center.gilia_original_config then
         center.gilia_original_config = gilia_deep_copy(center.config or {})
     end
@@ -160,12 +146,12 @@ local function gilia_get_base_from_original_config(center, path, fallback)
         table.insert(parts, part)
     end
 
-    -- ability.extra maps to config.extra
     if parts[1] == "ability" then
         table.remove(parts, 1)
     end
 
     local current = original_config
+
     for _, part in ipairs(parts) do
         if type(current) ~= "table" then
             return fallback
@@ -200,7 +186,6 @@ local function gilia_should_skip_number_key(k)
         or k == "order"
         or k == "sort_id"
 
-        -- Never randomize slot/area values.
         or k == "card_limit"
         or k == "extra_slots_used"
         or k == "consumeable_limit"
@@ -208,10 +193,8 @@ local function gilia_should_skip_number_key(k)
         or k == "joker_slots"
         or k == "slots"
 
-        -- min_highlighted often makes cards unusable if randomized.
         or k == "min_highlighted"
 
-        -- Visual/metadata values.
         or k == "x"
         or k == "y"
         or k == "h"
@@ -226,10 +209,6 @@ local function gilia_should_skip_number_key(k)
 end
 
 local function gilia_is_allowed_joker_key(k)
-    -- Do NOT include x_mult/xmult/Xmult here.
-    -- Some Jokers have hidden/default x_mult = 1 even when they are not
-    -- meant to give X Mult.
-
     return k == "extra"
         or k == "mult"
         or k == "chips"
@@ -248,9 +227,6 @@ local function gilia_is_allowed_joker_key(k)
 end
 
 local function gilia_must_be_integer_key(k, center_set)
-    -- Counts must stay whole numbers.
-    -- Normal values like mult, chips, cost, sell value, etc. can keep decimals.
-
     if k == "choose"
         or k == "max_highlighted"
         or k == "rank_change"
@@ -261,8 +237,6 @@ local function gilia_must_be_integer_key(k, center_set)
         return true
     end
 
-    -- For consumables and booster packs, "extra" is often a count.
-    -- Example: High Priestess creating 2 Planet cards.
     if k == "extra" and (
         center_set == "Tarot"
         or center_set == "Spectral"
@@ -275,12 +249,10 @@ local function gilia_must_be_integer_key(k, center_set)
 end
 
 local function gilia_integer_min_for_key(k, center_set)
-    -- Booster packs should never show 0 cards or let you choose 0 cards.
     if center_set == "Booster" then
         return 1
     end
 
-    -- Tarot/Spectral creation counts can become 0.
     if center_set == "Tarot" or center_set == "Spectral" then
         if k == "extra" then
             return 0
@@ -291,8 +263,6 @@ local function gilia_integer_min_for_key(k, center_set)
 end
 
 local function gilia_integer_max_for_key(k, center_set)
-    -- Safety caps to prevent UI explosions.
-
     if center_set == "Tarot" or center_set == "Spectral" then
         if k == "extra" then
             return 20
@@ -344,15 +314,9 @@ local function gilia_randomize_numbers_in_table(t, card, center, seed_prefix, mi
 
         if type(v) == "number" then
             if not gilia_should_skip_number_key(k) then
-
                 local base_value = gilia_get_base_from_original_config(center, current_path, nil)
 
                 if center_set == "Joker" then
-                    -- For Jokers, only randomize values that:
-                    -- 1. use an allowed effect-style key
-                    -- 2. actually exist in the Joker's original config
-                    --
-                    -- This stops hidden/default x_mult = 1 from becoming accidental x4 Mult.
                     if not gilia_is_allowed_joker_key(k) then
                         goto continue
                     end
@@ -361,11 +325,11 @@ local function gilia_randomize_numbers_in_table(t, card, center, seed_prefix, mi
                         goto continue
                     end
                 else
-                    -- For non-Jokers, fallback to the first seen value if not found in center.config.
                     if base_value == nil then
                         if card.gilia_random_base_numbers[current_path] == nil then
                             card.gilia_random_base_numbers[current_path] = v
                         end
+
                         base_value = card.gilia_random_base_numbers[current_path]
                     end
                 end
@@ -396,7 +360,6 @@ local function gilia_randomize_numbers_in_table(t, card, center, seed_prefix, mi
     end
 end
 
-
 local function gilia_fix_booster_values(card)
     if not card or not card.ability then return end
 
@@ -416,7 +379,6 @@ local function gilia_fix_booster_values(card)
         ability.choose = math.min(ability.choose, ability.extra)
     end
 end
-
 
 local function gilia_wrap_consumable_can_use(center)
     if not center then return end
@@ -468,7 +430,6 @@ local function gilia_wrap_consumable_can_use(center)
         return result
     end
 end
-
 
 function Gilia_randomize_poker_hands()
     if not gilia_random_values_enabled() then return end
@@ -529,12 +490,33 @@ function Gilia_randomise_poker_hands()
     return Gilia_randomize_poker_hands()
 end
 
-
 local function gilia_is_playing_card(card)
-    return card
-        and card.base
-        and card.config
-        and card.config.card
+    if not card then return false end
+    if not card.base then return false end
+    if not card.config then return false end
+    if not card.config.card then return false end
+
+    -- This is the important fix:
+    -- Do NOT treat Tarot/Planet/Spectral/Joker/Voucher cards as playing cards.
+    if card.config.center and card.config.center.set then
+        local set = card.config.center.set
+
+        if set == "Tarot"
+            or set == "Planet"
+            or set == "Spectral"
+            or set == "Joker"
+            or set == "Voucher"
+            or set == "Booster"
+        then
+            return false
+        end
+    end
+
+    -- Playing cards usually have a suit and rank/value.
+    if not card.base.suit then return false end
+    if not card.base.value and not card.base.id then return false end
+
+    return true
 end
 
 local function gilia_get_random_base_card(seed)
@@ -600,7 +582,6 @@ local function gilia_randomize_playing_card_from_booster(card)
     local run_seed = gilia_get_run_seed()
     local card_seed = gilia_get_card_seed(card)
 
-    -- Randomize the actual playing card rank/suit.
     local random_base = gilia_get_random_base_card(
         "gilia_" .. run_seed .. "_booster_playing_base_" .. card_seed
     )
@@ -609,8 +590,6 @@ local function gilia_randomize_playing_card_from_booster(card)
         card:set_base(random_base)
     end
 
-    -- Chance for a random enhancement.
-    -- Change 0.5 to 1 if you want every booster card to be enhanced.
     local enhance_chance = G.GAME.modifiers.gilia_random_booster_card_enhance_chance or 0.5
 
     if pseudorandom("gilia_" .. run_seed .. "_booster_enhance_chance_" .. card_seed) < enhance_chance then
@@ -809,6 +788,8 @@ function CardArea:emplace(card, location, stay_flipped)
         and self == G.pack_cards
         and card
     then
+        -- The strict gilia_is_playing_card check prevents Tarot/Planet/Spectral
+        -- cards from being converted into playing cards.
         gilia_randomize_playing_card_from_booster(card)
     end
 
