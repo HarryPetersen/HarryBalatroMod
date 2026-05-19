@@ -7,6 +7,67 @@ local function gilia_random_values_enabled()
         and G.GAME.modifiers.gilia_random_values
 end
 
+local function gilia_deep_copy(t)
+    if type(t) ~= "table" then return t end
+
+    local copy = {}
+    for k, v in pairs(t) do
+        if type(v) == "table" then
+            copy[k] = gilia_deep_copy(v)
+        else
+            copy[k] = v
+        end
+    end
+
+    return copy
+end
+
+local function gilia_get_original_center_config(center)
+    if not center then return nil end
+
+    -- Save the card center's original config once.
+    -- This prevents a Tarot value like 2 becoming 23, then 232, etc.
+    if not center.gilia_original_config then
+        center.gilia_original_config = gilia_deep_copy(center.config or {})
+    end
+
+    return center.gilia_original_config
+end
+
+local function gilia_get_base_from_original_config(center, path, fallback)
+    local original_config = gilia_get_original_center_config(center)
+    if type(original_config) ~= "table" then return fallback end
+
+    -- path examples:
+    -- ability.extra
+    -- ability.max_highlighted
+    -- ability.extra.mult
+    local parts = {}
+    for part in string.gmatch(path, "[^%.]+") do
+        table.insert(parts, part)
+    end
+
+    -- Remove the first "ability" part so ability.extra maps to config.extra.
+    if parts[1] == "ability" then
+        table.remove(parts, 1)
+    end
+
+    local current = original_config
+    for _, part in ipairs(parts) do
+        if type(current) ~= "table" then
+            return fallback
+        end
+
+        current = current[part]
+    end
+
+    if type(current) == "number" then
+        return current
+    end
+
+    return fallback
+end
+
 local function gilia_get_run_seed()
     if G and G.GAME and G.GAME.pseudorandom and G.GAME.pseudorandom.seed then
         return tostring(G.GAME.pseudorandom.seed)
@@ -35,13 +96,12 @@ local function gilia_random_float(seed, min, max)
     -- Curved random multiplier.
     -- 1 is the most common result.
     -- 50% chance below 1, 50% chance above 1.
-    -- Big values like 7, 8, 9, 10 are possible but much rarer.
+    -- High values are possible but rarer.
 
     if min > max then
         min, max = max, min
     end
 
-    -- Safety: this system is meant for positive multipliers.
     min = math.max(0, min)
     max = math.max(min, max)
 
@@ -51,10 +111,8 @@ local function gilia_random_float(seed, min, max)
     local distance = pseudorandom(seed .. "_distance") ^ curve_power
 
     if side < 0.5 then
-        -- Below 1
         return 1 - ((1 - min) * distance)
     else
-        -- Above 1
         return 1 + ((max - 1) * distance)
     end
 end
@@ -75,6 +133,10 @@ local function gilia_is_randomizable_set(set)
 end
 
 local function gilia_should_skip_number_key(k)
+    if type(k) == "string" and string.sub(k, 1, 6) == "gilia_" then
+        return true
+    end
+
     return k == "id"
         or k == "order"
         or k == "sort_id"
@@ -96,18 +158,11 @@ local function gilia_should_skip_number_key(k)
         or k == "alerted"
         or k == "bypass_discovery_center"
         or k == "bypass_discovery_ui"
-        or k == "my_randomised_joker_values"
-        or k == "gilia_randomised_card_values"
-        or k == "gilia_randomised_joker_values"
-        or k == "gilia_random_cost_mult"
-        or k == "gilia_random_sell_mult"
-        or k == "gilia_random_base_cost"
-        or k == "gilia_random_base_sell_cost"
 end
 
 local function gilia_must_be_integer_key(k, center_set)
-    -- These are counts, so they need to stay whole numbers.
-    -- Most other values are allowed to have decimals.
+    -- Counts must stay whole numbers.
+    -- Normal values like mult, chips, xmult, money, cost, etc. can keep decimals.
 
     if k == "choose"
         or k == "max_highlighted"
@@ -138,7 +193,7 @@ local function gilia_integer_min_for_key(k, center_set)
         return 1
     end
 
-    -- Consumable effects can be allowed to create/select 0 cards.
+    -- Tarot/Spectral creation counts can become 0.
     -- Example: High Priestess can create 0 Planet cards.
     if center_set == "Tarot" or center_set == "Spectral" then
         if k == "extra" then
@@ -149,7 +204,9 @@ local function gilia_integer_min_for_key(k, center_set)
     return 1
 end
 
-local function gilia_clamp_randomised_value(base_value, randomised_value, min, max)
+local function gilia_clamp_randomized_value(base_value, randomized_value, min, max)
+    if type(base_value) ~= "number" then return randomized_value end
+
     local low = base_value * min
     local high = base_value * max
 
@@ -157,15 +214,16 @@ local function gilia_clamp_randomised_value(base_value, randomised_value, min, m
         low, high = high, low
     end
 
-    if randomised_value < low then randomised_value = low end
-    if randomised_value > high then randomised_value = high end
+    if randomized_value < low then randomized_value = low end
+    if randomized_value > high then randomized_value = high end
 
-    return randomised_value
+    return randomized_value
 end
 
-local function gilia_randomise_numbers_in_table(t, card, seed_prefix, min, max, path, center_set)
+local function gilia_randomize_numbers_in_table(t, card, center, seed_prefix, min, max, path, center_set)
     if type(t) ~= "table" then return end
     if not card then return end
+    if not center then return end
 
     card.gilia_random_base_numbers = card.gilia_random_base_numbers or {}
 
@@ -174,17 +232,22 @@ local function gilia_randomise_numbers_in_table(t, card, seed_prefix, min, max, 
 
         if type(v) == "number" then
             if not gilia_should_skip_number_key(k) then
-                -- Save the original value once.
-                -- This prevents values like 2 becoming 403 after repeated recalculations.
-                if card.gilia_random_base_numbers[current_path] == nil then
-                    card.gilia_random_base_numbers[current_path] = v
+                -- IMPORTANT:
+                -- Prefer the original center config as the base value.
+                -- This fixes 2 becoming 232 after repeated randomization.
+                local base_value = gilia_get_base_from_original_config(center, current_path, nil)
+
+                if base_value == nil then
+                    if card.gilia_random_base_numbers[current_path] == nil then
+                        card.gilia_random_base_numbers[current_path] = v
+                    end
+                    base_value = card.gilia_random_base_numbers[current_path]
                 end
 
-                local base_value = card.gilia_random_base_numbers[current_path]
                 local mult = gilia_random_float(seed_prefix .. "_" .. current_path, min, max)
                 local new_value = base_value * mult
 
-                new_value = gilia_clamp_randomised_value(base_value, new_value, min, max)
+                new_value = gilia_clamp_randomized_value(base_value, new_value, min, max)
 
                 if gilia_must_be_integer_key(k, center_set) then
                     local min_integer = gilia_integer_min_for_key(k, center_set)
@@ -194,7 +257,7 @@ local function gilia_randomise_numbers_in_table(t, card, seed_prefix, min, max, 
                 t[k] = new_value
             end
         elseif type(v) == "table" then
-            gilia_randomise_numbers_in_table(v, card, seed_prefix, min, max, current_path, center_set)
+            gilia_randomize_numbers_in_table(v, card, center, seed_prefix, min, max, current_path, center_set)
         end
     end
 end
@@ -204,7 +267,6 @@ local function gilia_fix_booster_values(card)
 
     local ability = card.ability
 
-    -- Booster pack card counts must be whole numbers.
     if type(ability.extra) == "number" then
         ability.extra = math.max(1, math.floor(ability.extra + 0.5))
     end
@@ -213,16 +275,15 @@ local function gilia_fix_booster_values(card)
         ability.choose = math.max(1, math.floor(ability.choose + 0.5))
     end
 
-    -- You should not be able to choose more cards than the pack shows.
     if type(ability.extra) == "number" and type(ability.choose) == "number" then
         ability.choose = math.min(ability.choose, ability.extra)
     end
 end
 
-function Gilia_randomise_poker_hands()
+function Gilia_randomize_poker_hands()
     if not gilia_random_values_enabled() then return end
     if not G.GAME.hands then return end
-    if G.GAME.gilia_randomised_poker_hands then return end
+    if G.GAME.gilia_randomized_poker_hands then return end
 
     local min, max = gilia_get_min_max()
     local run_seed = gilia_get_run_seed()
@@ -246,7 +307,7 @@ function Gilia_randomise_poker_hands()
                     max
                 )
 
-                hand.chips = gilia_clamp_randomised_value(
+                hand.chips = gilia_clamp_randomized_value(
                     base_chips,
                     base_chips * chips_mult,
                     min,
@@ -261,7 +322,7 @@ function Gilia_randomise_poker_hands()
                     max
                 )
 
-                hand.mult = gilia_clamp_randomised_value(
+                hand.mult = gilia_clamp_randomized_value(
                     base_mult,
                     base_mult * mult_mult,
                     min,
@@ -271,7 +332,12 @@ function Gilia_randomise_poker_hands()
         end
     end
 
-    G.GAME.gilia_randomised_poker_hands = true
+    G.GAME.gilia_randomized_poker_hands = true
+end
+
+-- British spelling alias, in case anything else in your mod calls this version.
+function Gilia_randomise_poker_hands()
+    return Gilia_randomize_poker_hands()
 end
 
 local old_card_set_ability = Card.set_ability
@@ -283,9 +349,10 @@ function Card:set_ability(center, initial, delay_sprites)
     if not center or not gilia_is_randomizable_set(center.set) then return end
     if not self.ability then return end
 
+    gilia_get_original_center_config(center)
+
     local center_key = tostring(center.set or "unknown_set") .. "_" .. tostring(center.key or center.name or "unknown_card")
 
-    -- If the card changes into a different center, reset its saved base values.
     if self.gilia_random_center_key ~= center_key then
         self.gilia_random_center_key = center_key
         self.gilia_random_base_numbers = {}
@@ -303,9 +370,10 @@ function Card:set_ability(center, initial, delay_sprites)
         .. "_"
         .. card_seed
 
-    gilia_randomise_numbers_in_table(
+    gilia_randomize_numbers_in_table(
         self.ability,
         self,
+        center,
         seed_prefix,
         min,
         max,
@@ -326,25 +394,22 @@ function Card:set_cost()
     if not gilia_random_values_enabled() then return end
     if not self.config or not self.config.center then return end
     if not gilia_is_randomizable_set(self.config.center.set) then return end
-    if not self.ability then return end
 
+    local center = self.config.center
     local min, max = gilia_get_min_max()
     local run_seed = gilia_get_run_seed()
     local card_seed = gilia_get_card_seed(self)
-    local center = self.config.center
 
-    -- Save base cost once, then always randomise from that.
-    -- This prevents cost from multiplying again and again.
-    if self.ability.gilia_random_base_cost == nil and type(self.cost) == "number" then
-        self.ability.gilia_random_base_cost = self.cost
+    if self.gilia_random_base_cost == nil and type(self.cost) == "number" then
+        self.gilia_random_base_cost = self.cost
     end
 
-    if self.ability.gilia_random_base_sell_cost == nil and type(self.sell_cost) == "number" then
-        self.ability.gilia_random_base_sell_cost = self.sell_cost
+    if self.gilia_random_base_sell_cost == nil and type(self.sell_cost) == "number" then
+        self.gilia_random_base_sell_cost = self.sell_cost
     end
 
-    if not self.ability.gilia_random_cost_mult then
-        self.ability.gilia_random_cost_mult = gilia_random_float(
+    if not self.gilia_random_cost_mult then
+        self.gilia_random_cost_mult = gilia_random_float(
             "gilia_"
                 .. run_seed
                 .. "_cost_"
@@ -358,8 +423,8 @@ function Card:set_cost()
         )
     end
 
-    if not self.ability.gilia_random_sell_mult then
-        self.ability.gilia_random_sell_mult = gilia_random_float(
+    if not self.gilia_random_sell_mult then
+        self.gilia_random_sell_mult = gilia_random_float(
             "gilia_"
                 .. run_seed
                 .. "_sell_"
@@ -373,17 +438,17 @@ function Card:set_cost()
         )
     end
 
-    if type(self.ability.gilia_random_base_cost) == "number" then
+    if type(self.gilia_random_base_cost) == "number" then
         self.cost = math.max(
             0,
-            self.ability.gilia_random_base_cost * self.ability.gilia_random_cost_mult
+            self.gilia_random_base_cost * self.gilia_random_cost_mult
         )
     end
 
-    if type(self.ability.gilia_random_base_sell_cost) == "number" then
+    if type(self.gilia_random_base_sell_cost) == "number" then
         self.sell_cost = math.max(
             0,
-            self.ability.gilia_random_base_sell_cost * self.ability.gilia_random_sell_mult
+            self.gilia_random_base_sell_cost * self.gilia_random_sell_mult
         )
     end
 end
@@ -438,7 +503,6 @@ function level_up_hand(card, hand, instant, amount)
             max
         )
 
-        -- Do not round these. Planet upgrades can now have decimal chips/mult.
         hand_data.chips = math.max(0, old_chips + chips_gained * chips_mult)
         hand_data.mult = math.max(0, old_mult + mult_gained * mult_mult)
     end
@@ -452,8 +516,8 @@ function Game:start_run(args)
     old_game_start_run(self, args)
 
     if gilia_random_values_enabled() then
-        G.GAME.gilia_randomised_poker_hands = nil
+        G.GAME.gilia_randomized_poker_hands = nil
         G.GAME.gilia_base_poker_hands = nil
-        Gilia_randomise_poker_hands()
+        Gilia_randomize_poker_hands()
     end
 end
