@@ -130,12 +130,11 @@ SMODS.Consumable {
     pos = { x = 0, y = 0 },
     cost = 5,
 
-    config = { max_highlighted = 3, min_highlighted = 2 },
+    config = { max_highlighted = 3},
 
     loc_vars = function(self, info_queue, card)
         return {
             vars = {
-                card.ability.min_highlighted or self.config.min_highlighted,
                 card.ability.max_highlighted or self.config.max_highlighted
             }
         }
@@ -143,8 +142,8 @@ SMODS.Consumable {
 
     can_use = function(self, card)
         local h = G.hand and G.hand.highlighted or {}
-        local min_highlighted = card.ability.min_highlighted or self.config.min_highlighted or 2
         local max_highlighted = card.ability.max_highlighted or self.config.max_highlighted or 3
+        local min_highlighted = 2
 
         return #h >= min_highlighted and #h <= max_highlighted
     end,
@@ -152,7 +151,7 @@ SMODS.Consumable {
     loc_txt = {
         name = "Double Trouble",
         text = {
-            "Select {C:attention}#1#{} to {C:attention}#2#{} cards,",
+            "Select up to {C:attention}#1#{} cards,",
             "convert the {C:attention}left{} card(s)",
             "into the {C:attention}right{} card",
             "{C:inactive}(Drag to rearrange)",
