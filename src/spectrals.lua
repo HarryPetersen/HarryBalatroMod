@@ -215,7 +215,7 @@ SMODS.Consumable{
     loc_txt = {
         name = "Could Have Been",
         text = {
-            "Select 1 card",
+            "Select {C:attention}#1#{} card",
             "Turn all other cards in hand",
             "into that card"
         },
