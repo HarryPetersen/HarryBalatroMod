@@ -503,7 +503,6 @@ SMODS.Back({
     loc_vars = function(self, info_queue, card)
         return { vars = { self.config.cry_misprint_min, self.config.cry_misprint_max } }
     end,
-    -- Add your own atlas/pos here later. Leaving them out should use Steamodded's fallback art.
     unlocked = true,
     discovered = true,
     apply = function(self)
