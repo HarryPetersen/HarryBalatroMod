@@ -1,4 +1,4 @@
-#Harry's Balatro Mod
+Harry's Balatro Mod
 
 Adds:
   Jokers
